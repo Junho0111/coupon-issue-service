@@ -39,8 +39,10 @@ public class CouponService {
     // v0: 동시성 방어 의도적 제외. v1(02-coupon-concurrency-design.md)에서 해결.
     @Transactional
     public Issuance issue(long couponId, long userId) {
-        Coupon coupon = couponRepository.findById(couponId)
-                .orElseThrow(CouponNotFoundException::new);
+        Coupon coupon = couponRepository.findByIdForUpdate(couponId);
+        if (coupon == null) {
+            throw new CouponNotFoundException();
+        }
 
         LocalDateTime now = LocalDateTime.now();
 
