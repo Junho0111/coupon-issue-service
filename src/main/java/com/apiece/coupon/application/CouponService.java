@@ -13,36 +13,45 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Service
 public class CouponService {
 
     private final CouponRepository couponRepository;
     private final IssuanceRepository issuanceRepository;
+    private final CouponIssuer couponIssuer;
 
-    public CouponService(CouponRepository couponRepository, IssuanceRepository issuanceRepository) {
+
+    public CouponService(
+            CouponRepository couponRepository,
+            IssuanceRepository issuanceRepository,
+            CouponIssuer couponIssuer
+    ) {
         this.couponRepository = couponRepository;
         this.issuanceRepository = issuanceRepository;
+        this.couponIssuer = couponIssuer;
     }
 
     @Transactional
     public Coupon createCoupon(CreateCouponRequest request) {
-        Coupon coupon = new Coupon(
-                request.getName(),
-                request.getTotalQuantity(),
-                request.getValidityDays(),
-                request.getStartsAt()
+        Coupon coupon = couponRepository.save(
+                new Coupon(
+                        request.getName(),
+                        request.getTotalQuantity(),
+                        request.getValidityDays(),
+                        request.getStartsAt()
+                )
         );
-        return couponRepository.save(coupon);
+        couponIssuer.initStock(Objects.requireNonNull(coupon.getId()), coupon.getTotalQuantity());
+        return coupon;
     }
 
     // v0: 동시성 방어 의도적 제외. v1(02-coupon-concurrency-design.md)에서 해결.
     @Transactional
     public Issuance issue(long couponId, long userId) {
-        Coupon coupon = couponRepository.findByIdForUpdate(couponId);
-        if (coupon == null) {
-            throw new CouponNotFoundException();
-        }
+        Coupon coupon = couponRepository.findById(couponId)
+                .orElseThrow(CouponNotFoundException::new);
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -56,7 +65,8 @@ public class CouponService {
             throw new AlreadyIssuedException();
         }
 
-        coupon.setIssuedQuantity(coupon.getIssuedQuantity() + 1);
+        couponIssuer.tryIssue(couponId);
+        couponRepository.incrementIssuedQuantity(couponId);
 
         return issuanceRepository.save(
                 new Issuance(
