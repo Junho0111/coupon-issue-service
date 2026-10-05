@@ -34,7 +34,7 @@ public class InMemoryIssuanceWorker {
     private void runLoop() {
         while (!Thread.currentThread().isInterrupted()) {
             IssuanceRequested event;
-            try {
+            try {//메시지가 있으면
                 event = inMemoryIssuanceQueue.poll();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -44,7 +44,7 @@ public class InMemoryIssuanceWorker {
                 continue;
             }
             try {
-                issuanceWriter.write(event);
+                issuanceWriter.write(event);//여기서 처리
             } catch (Exception e) {
                 log.error(
                         "Worker write 실패: couponId={}, userId={}",
@@ -57,7 +57,7 @@ public class InMemoryIssuanceWorker {
         log.info("issuance-worker 종료");
     }
 
-    @PreDestroy
+    @PreDestroy // 더 이상 빈이 이 메모리에 있지 않을때 이 전에 해당 메서드를 실행시켜달라
     public void stop() {
         if (workerThread != null) {
             workerThread.interrupt();

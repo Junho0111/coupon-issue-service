@@ -5,10 +5,10 @@ import com.apiece.coupon.domain.Coupon;
 import com.apiece.coupon.domain.CouponRepository;
 import com.apiece.coupon.domain.Issuance;
 import com.apiece.coupon.domain.IssuanceRepository;
-import com.apiece.coupon.support.AlreadyIssuedException;
+import com.apiece.coupon.infrastructure.messaging.InMemoryIssuanceQueue;
+import com.apiece.coupon.infrastructure.messaging.IssuanceRequested;
 import com.apiece.coupon.support.CouponNotFoundException;
 import com.apiece.coupon.support.NotStartedException;
-import com.apiece.coupon.support.SoldOutException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,18 +19,18 @@ import java.util.Objects;
 public class CouponService {
 
     private final CouponRepository couponRepository;
-    private final IssuanceRepository issuanceRepository;
     private final CouponIssuer couponIssuer;
+    private final InMemoryIssuanceQueue issuanceQueue;
 
 
     public CouponService(
             CouponRepository couponRepository,
-            IssuanceRepository issuanceRepository,
-            CouponIssuer couponIssuer
+            CouponIssuer couponIssuer,
+            InMemoryIssuanceQueue issuanceQueue
     ) {
         this.couponRepository = couponRepository;
-        this.issuanceRepository = issuanceRepository;
         this.couponIssuer = couponIssuer;
+        this.issuanceQueue = issuanceQueue;
     }
 
     @Transactional
@@ -47,34 +47,33 @@ public class CouponService {
         return coupon;
     }
 
-    // v0: 동시성 방어 의도적 제외. v1(02-coupon-concurrency-design.md)에서 해결.
-    @Transactional
     public Issuance issue(long couponId, long userId) {
         Coupon coupon = couponRepository.findById(couponId)
                 .orElseThrow(CouponNotFoundException::new);
 
         LocalDateTime now = LocalDateTime.now();
-
         if (!coupon.isBookingOpen(now)) {
             throw new NotStartedException();
         }
-        if (coupon.isSoldOut()) {
-            throw new SoldOutException();
-        }
-        if (issuanceRepository.existsByUserIdAndCouponId(userId, couponId)) {
-            throw new AlreadyIssuedException();
-        }
 
-        couponIssuer.tryIssue(couponId);
-        couponRepository.incrementIssuedQuantity(couponId);
+        couponIssuer.tryIssue(couponId, userId);
 
-        return issuanceRepository.save(
-                new Issuance(
-                        userId,
+        LocalDateTime expiresAt = now.plusDays(coupon.getValidityDays());
+        //메시지 발행
+        issuanceQueue.enqueue(
+                new IssuanceRequested(
                         couponId,
+                        userId,
                         now,
-                        now.plusDays(coupon.getValidityDays())
+                        expiresAt
                 )
+        );
+
+        return new Issuance(
+                userId,
+                couponId,
+                now,
+                expiresAt
         );
     }
 }

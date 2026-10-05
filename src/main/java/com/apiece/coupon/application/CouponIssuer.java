@@ -1,5 +1,6 @@
 package com.apiece.coupon.application;
 
+import com.apiece.coupon.support.AlreadyIssuedException;
 import com.apiece.coupon.support.SoldOutException;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -21,10 +22,11 @@ public class CouponIssuer {
         this.redisTemplate = redisTemplate;
     }
 
-    public void tryIssue(long couponId) {
+    public void tryIssue(long couponId, long userId) {
         Long raw = redisTemplate.execute(
                 script,
-                List.of(stockKey(couponId))
+                List.of(stockKey(couponId), usersKey(couponId)),
+                String.valueOf(userId)
         );
 
         if (raw == null) {
@@ -38,7 +40,15 @@ public class CouponIssuer {
         if (raw == 0L) {
             throw new SoldOutException();
         }
+
+        if (raw == -1L) {
+            throw new AlreadyIssuedException(); // 유저가 이미 발급을 해서 더 이상 발급할 수 없다는 예외
+        }
         throw new IllegalStateException("예상치 못한 Lua 결과: " + raw);
+    }
+
+    private String usersKey(long couponId) {
+        return "coupon:" + couponId + ":users";
     }
 
     public void initStock(long couponId, int totalQuantity) {
