@@ -4,10 +4,10 @@ import com.apiece.coupon.api.dto.CreateCouponRequest;
 import com.apiece.coupon.domain.Coupon;
 import com.apiece.coupon.domain.CouponRepository;
 import com.apiece.coupon.domain.Issuance;
+import com.apiece.coupon.infrastructure.messaging.IssuanceRequestProducer;
 import com.apiece.coupon.infrastructure.messaging.IssuanceRequested;
 import com.apiece.coupon.support.CouponNotFoundException;
 import com.apiece.coupon.support.NotStartedException;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,17 +19,17 @@ public class CouponService {
 
     private final CouponRepository couponRepository;
     private final CouponIssuer couponIssuer;
-    private final ApplicationEventPublisher eventPublisher;
+    private final IssuanceRequestProducer issuanceRequestProducer;
 
 
     public CouponService(
             CouponRepository couponRepository,
             CouponIssuer couponIssuer,
-            ApplicationEventPublisher eventPublisher
+            IssuanceRequestProducer issuanceRequestProducer
     ) {
         this.couponRepository = couponRepository;
         this.couponIssuer = couponIssuer;
-        this.eventPublisher = eventPublisher;
+        this.issuanceRequestProducer = issuanceRequestProducer;
     }
 
     @Transactional
@@ -59,7 +59,7 @@ public class CouponService {
 
         LocalDateTime expiresAt = now.plusDays(coupon.getValidityDays());
         //메시지 발행
-        eventPublisher.publishEvent(
+        issuanceRequestProducer.publish(
                 new IssuanceRequested(
                         couponId,
                         userId,
