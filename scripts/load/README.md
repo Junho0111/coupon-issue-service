@@ -33,3 +33,11 @@ git checkout <branch>
 서비스 프로세스는 띄운 채로 두고, 회차 사이에 `reset.sh` 로 DB/Redis 만 비우므로 JVM JIT, HikariCP 풀, Lettuce/Kafka 컨슈머 상태는 살아남아 2회차가 steady-state 값이 된다. 
 3-1 (동기) 만 예외로 두 회차가 비슷한데, 병목이 JIT/풀이 아니라 DB INSERT 자체라 워밍업이 의미 없기 때문이다.
 
+## part-4
+
+```bash
+./scripts/load/part-4/run.sh           # 두 시나리오 모두 (워밍업 + 본 측정)
+./scripts/load/part-4/run.sh policy    # ① issue API 쿠폰 정보 조회 요청 급증만 (500 req/s × 30s)
+./scripts/load/part-4/run.sh sellout   # ② 매진 후 새로고침만 (4000 req/s × 30s)
+./scripts/load/part-4/run.sh --once policy   # 워밍업 생략
+```
