@@ -9,6 +9,8 @@ import com.apiece.coupon.infrastructure.messaging.IssuanceRequested;
 import com.apiece.coupon.support.NotStartedException;
 import java.time.LocalDateTime;
 import java.util.Objects;
+
+import com.apiece.coupon.support.SoldOutException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,17 +21,20 @@ public class CouponService {
     private final CouponIssuePolicyReader couponIssuePolicyReader;
     private final CouponIssuer couponIssuer;
     private final IssuanceRequestProducer issuanceRequestProducer;
+    private final SoldOutState soldOutState;
 
     public CouponService(
             CouponRepository couponRepository,
             CouponIssuePolicyReader couponIssuePolicyReader,
             CouponIssuer couponIssuer,
-            IssuanceRequestProducer issuanceRequestProducer
+            IssuanceRequestProducer issuanceRequestProducer,
+            SoldOutState soldOutState
     ) {
         this.couponRepository = couponRepository;
         this.couponIssuePolicyReader = couponIssuePolicyReader;
         this.couponIssuer = couponIssuer;
         this.issuanceRequestProducer = issuanceRequestProducer;
+        this.soldOutState = soldOutState;
     }
 
     @Transactional
@@ -47,6 +52,10 @@ public class CouponService {
     }
 
     public Issuance issue(long couponId, long userId) {
+        if (soldOutState.isSoldOut(couponId)) {
+            throw new SoldOutException();
+        }
+
         CouponIssuePolicy policy = couponIssuePolicyReader.get(couponId);
 
         LocalDateTime now = LocalDateTime.now();
