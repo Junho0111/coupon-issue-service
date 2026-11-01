@@ -80,6 +80,8 @@ services:
       COUPON_CACHE_TTL_MS: ${COUPON_CACHE_TTL_MS:-1000}
       # issue 쿠폰 정보 조회의 stampede 차이를 보이기 위한 DB latency 시뮬레이션.
       COUPON_CACHE_SIMULATED_LOAD_LATENCY_MS: ${COUPON_CACHE_SIMULATED_LOAD_LATENCY_MS:-100}
+      # 캐시 플래시하는시간 기본값은 500ms이고 Redis에 넣는 TTL이 1초이기 때문에 500ms마다 백그라운드에서 캐시 갱신
+      COUPON_CACHE_FRESH_MS: ${COUPON_CACHE_FRESH_MS:-500}
     ports:
       - "8080:8080" # 외부포트(로컬내부)/내부포트(도커내부)
 
